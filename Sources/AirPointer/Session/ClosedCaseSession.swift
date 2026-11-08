@@ -16,10 +16,11 @@ struct ClosedCasePointerFilter{
         guard dt>0 else{return filtered}
         if dt>0.25{self=ClosedCasePointerFilter();return feed(point,at:stamp)}
         func alpha(_ cutoff:Double)->Double{dt/(dt+1/(2 * .pi * cutoff))}
-        let derivativeAlpha=alpha(3)
+        let derivativeAlpha=alpha(1.5)
         velocity.x+=derivativeAlpha*((point.x-previous.x)/dt-velocity.x)
         velocity.y+=derivativeAlpha*((point.y-previous.y)/dt-velocity.y)
-        let cutoff=min(25,3.5+8*hypot(velocity.x,velocity.y)),a=alpha(cutoff)
+        let speed=max(0,hypot(velocity.x,velocity.y)-0.03)
+        let cutoff=min(20,0.9+10*speed+18*speed*speed),a=alpha(cutoff)
         let next=CGPoint(x:filtered.x+a*(point.x-filtered.x),y:filtered.y+a*(point.y-filtered.y))
         self.previous=point;self.filtered=next;self.time=stamp;return next
     }
@@ -419,12 +420,14 @@ func runClosedCaseNativeChecks() throws {
     dropped.evaluateScript("""
     var saved={right:[0.3,0,0],up:[0,0.3,0],gravity:[0,0,1],target_sha256:'x'},grip=new Grip(saved);
     var edges={kept:grip.recenter([1,0,0,0],[0,0,1]),center:grip.point([1,0,0,0]),right:grip.point([Math.cos(.075),Math.sin(.075),0,0]),
+      beyondRight:grip.point([Math.cos(.3),Math.sin(.3),0,0]),
       parallel:new Grip({right:[0.3,0,0],up:[0.3,0.01,0],gravity:[0,0,1]}).edges===null,
       turned:new Grip(saved).recenter([Math.SQRT1_2,Math.SQRT1_2,0,0],[0,0,1]),fresh:new Grip().edges===null};
     """)
     let edges=dropped.evaluateScript("edges")?.toDictionary() as? [String:Any]
     func near(_ value:Any?,_ expected:[Double])->Bool{(value as? [Double]).map{zip($0,expected).allSatisfy{abs($0-$1)<1e-6} && $0.count==2} ?? false}
     guard dropped.exception==nil,edges?["kept"] as? Bool==true,near(edges?["center"],[0.5,0.5]),near(edges?["right"],[0.75,0.5]),
+          near(edges?["beyondRight"],[1.5,0.5]),
           edges?["parallel"] as? Bool==true,edges?["turned"] as? Bool==false,edges?["fresh"] as? Bool==true else{
         throw LessonError.message("Saved grip edges must recenter with one pose and refuse a different hold.")
     }
